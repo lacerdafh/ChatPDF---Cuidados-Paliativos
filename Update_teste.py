@@ -1,4 +1,5 @@
 import streamlit as st
+import requests
 from langchain_core.prompts import ChatPromptTemplate, FewShotChatMessagePromptTemplate
 from langchain_community.document_loaders.pdf import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -53,6 +54,13 @@ final_prompt = ChatPromptTemplate.from_messages([
 ])
 
 # Funções para carregar e processar documentos
+def baixar_manual(url, local_path):
+    """Baixa o manual PDF da URL especificada."""
+    response = requests.get(url)
+    with open(local_path, "wb") as f:
+        f.write(response.content)
+    return local_path
+
 def importacao_documentos(file_path):
     loader = PyPDFLoader(file_path)
     return loader.load()
@@ -77,32 +85,32 @@ def cria_vector_store(documentos):
 
 # Interface do Streamlit
 st.title("Chatbot para Cuidados Paliativos")
-file_path = st.text_input("Caminho do arquivo PDF:", "D:/5- Asimov acaemy/manual-cuidados-paliativos (1).pdf")
 
-if st.button("Carregar e Processar Documento"):
-    with st.spinner("Carregando documento..."):
+# Botão para carregar o manual
+if st.button("Baixar e Carregar Manual"):
+    manual_url = "https://www.gov.br/saude/pt-br/centrais-de-conteudo/publicacoes/guias-e-manuais/2023/manual-de-cuidados-paliativos-2a-edicao/@@download/file"
+    local_file_path = "manual-cuidados-paliativos.pdf"
+    st.info("Baixando o manual...")
+    try:
+        file_path = baixar_manual(manual_url, local_file_path)
         documentos = importacao_documentos(file_path)
         documentos = split_de_documentos(documentos)
         vector_store = cria_vector_store(documentos)
-        st.success("Documento processado com sucesso!")
-
-# Configuração do retriever e do chain
-retriever = vector_store.as_retriever(search_type='mmr', search_kwargs={"k": 5, "fetch_k": 20})
-persist_directory = "./chroma_vectorstore"
-embeddings = OllamaEmbeddings(model="llama3.2:latest")
-vectorstore = Chroma.from_documents(
-    documents=documentos,
-    embedding=embeddings,
-    persist_directory=persist_directory,
-)
-chain = final_prompt | llm | {"context": retriever, "pergunta": RunnablePassthrough()}
+        st.success("Manual carregado e processado com sucesso!")
+    except Exception as e:
+        st.error(f"Erro ao baixar ou processar o manual: {str(e)}")
 
 # Entrada do usuário
 pergunta = st.text_input("Digite sua pergunta:")
 
 if st.button("Enviar"):
-    with st.spinner("Gerando resposta..."):
-        resposta = chain.invoke({"pergunta": pergunta})
-        resposta_texto = resposta.content if isinstance(resposta, AIMessage) else str(resposta)
-        st.write("**Resposta:**")
-        st.write(resposta_texto)
+    if 'vector_store' not in locals():
+        st.warning("Por favor, carregue o manual antes de enviar perguntas.")
+    else:
+        with st.spinner("Gerando resposta..."):
+            retriever = vector_store.as_retriever(search_type='mmr', search_kwargs={"k": 5, "fetch_k": 20})
+            chain = final_prompt | llm | {"context": retriever, "pergunta": RunnablePassthrough()}
+            resposta = chain.invoke({"pergunta": pergunta})
+            resposta_texto = resposta.content if isinstance(resposta, AIMessage) else str(resposta)
+            st.write("**Resposta:**")
+            st.write(resposta_texto)
