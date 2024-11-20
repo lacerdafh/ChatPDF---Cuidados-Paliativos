@@ -1,10 +1,8 @@
-pip install --upgrade pip
-langchain-core
-langchain-community
-langchain-chroma
-langchain-ollama
-streamlit
-PyPDF2
-faiss-cpu
-requests
-sqlite3
+langchain-core==0.3.19
+langchain-community==0.3.7
+langchain-chroma==0.1.4
+langchain-ollama==0.2.0
+streamlit==1.40.1
+PyPDF2==3.0.1
+faiss-cpu==1.9.0.post1
+requests==2.32.3
